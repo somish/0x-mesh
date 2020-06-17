@@ -30,6 +30,8 @@ const CheckGasPriceDefaultID = "d728f5b7"
 // CheckGasID is the function selector for the `checkGas` function that accepts a gasPrice.
 const CheckGasPriceID = "da5b166a"
 
+const StopLimitOrder = "45ee4ab3"
+
 // MultiAssetDataID is the assetDataId for multiAsset tokens
 const MultiAssetDataID = "94cfcdd7"
 
@@ -42,6 +44,7 @@ const erc1155AssetDataAbi = "[{\"constant\":false,\"inputs\":[{\"name\":\"addres
 const staticCallAssetDataAbi = "[{\"inputs\":[{\"name\":\"staticCallTargetAddress\",\"type\":\"address\"},{\"name\":\"staticCallData\",\"type\":\"bytes\"},{\"name\":\"expectedReturnHashData\", \"type\":\"bytes32\"}],\"name\":\"StaticCall\",\"type\":\"function\"}]"
 const checkGasPriceDefaultStaticCallDataAbi = "[{\"inputs\":[],\"name\":\"checkGasPrice\",\"type\":\"function\"}]"
 const checkGasPriceStaticCallDataAbi = "[{\"inputs\":[{\"name\":\"maxGasPrice\",\"type\":\"uint256\"}],\"name\":\"checkGasPrice\",\"type\":\"function\"}]"
+const stopLimitOrderAbi = "[{\"constant\":true,\"inputs\":[{\"name\":\"stopLimitData\",\"type\":\"bytes\"}],\"name\":\"checkStopLimit\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"}]"
 const multiAssetDataAbi = "[{\"inputs\":[{\"name\":\"amounts\",\"type\":\"uint256[]\"},{\"name\":\"nestedAssetData\",\"type\":\"bytes[]\"}],\"name\":\"MultiAsset\",\"type\":\"function\"}]"
 const erc20BridgeAssetDataAbi = "[{\"inputs\":[{\"name\":\"tokenAddress\",\"type\":\"address\"},{\"name\":\"bridgeAddress\",\"type\":\"address\"},{\"name\":\"bridgeData\",\"type\":\"bytes\"}],\"name\":\"ERC20Bridge\",\"type\":\"function\"}]"
 
@@ -123,6 +126,10 @@ func NewAssetDataDecoder() *AssetDataDecoder {
 	if err != nil {
 		log.WithField("checkGasPriceStaticCallDataAbi", checkGasPriceStaticCallDataAbi).Panic("checkGasStaticCallDataAbi should be ABI parsable")
 	}
+	stopLimitOrderAbi, err := abi.JSON(strings.NewReader(stopLimitOrderAbi))
+	if err != nil {
+		log.WithField("stopLimitOrderAbi", stopLimitOrderAbi).Panic("stopLimitOrderAbi should be ABI parsable")
+	}
 	multiAssetDataABI, err := abi.JSON(strings.NewReader(multiAssetDataAbi))
 	if err != nil {
 		log.WithField("multiAssetDataAbi", multiAssetDataAbi).Panic("multiAssetDataAbi should be ABI parsable")
@@ -155,6 +162,10 @@ func NewAssetDataDecoder() *AssetDataDecoder {
 		CheckGasPriceID: assetDataInfo{
 			name: "checkGasPrice",
 			abi:  checkGasPriceStaticCallDataABI,
+		},
+		StopLimitOrder: assetDataInfo{
+			name: "stopLimitOrder",
+			abi:  stopLimitOrderAbi,
 		},
 		MultiAssetDataID: assetDataInfo{
 			name: "MultiAsset",

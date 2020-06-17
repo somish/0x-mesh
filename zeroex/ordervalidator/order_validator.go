@@ -805,6 +805,16 @@ func (o *OrderValidator) isSupportedStaticCallData(staticCallAssetData zeroex.St
 		if o.contractAddresses.MaximumGasPrice == constants.NullAddress || staticCallAssetData.StaticCallTargetAddress != o.contractAddresses.MaximumGasPrice {
 			return false
 		}
+	case "stopLimitOrder":
+		var decodedStaticCallData zeroex.StaticCallAssetData
+		err := o.assetDataDecoder.Decode(staticCallAssetData.StaticCallData, &decodedStaticCallData)
+		if err != nil {
+			return false
+		}
+		// We currently restrict the `checkGasPrice` staticcall to the known MaximumGasPrice contract.
+		if o.contractAddresses.MaximumGasPrice == constants.NullAddress || staticCallAssetData.StaticCallTargetAddress != o.contractAddresses.MaximumGasPrice {
+			return false
+		}
 	default:
 		return false
 	}

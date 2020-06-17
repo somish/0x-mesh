@@ -82,6 +82,7 @@ type OrdersCollection struct {
 	MakerAddressAndSaltIndex                     *db.Index
 	MakerAddressTokenAddressTokenIDIndex         *db.Index
 	MakerAddressMakerFeeAssetAddressTokenIDIndex *db.Index
+	MakerAddressAssetAddressProxyAddressTokenIDIndex *db.index
 	LastUpdatedIndex                             *db.Index
 	IsRemovedIndex                               *db.Index
 	ExpirationTimeIndex                          *db.Index
@@ -189,7 +190,33 @@ func setupOrders(database *db.DB, contractAddresses ethereum.ContractAddresses) 
 		}
 		return indexValues
 	})
+	makerAddressAssetAddressProxyAddressTokenIDIndex := col.AddMultiIndex("makerAddressAssetAddressProxyAddressTokenIDIndex", func(m db.Model) [][]byte {
+		order := m.(*Order)
+		if bytes.Equal(order.SignedOrder.MakerFeeAssetData, constants.NullBytes) {
+			// MakerFeeAssetData is optional and the lack of a maker fee is indicated
+			// by null bytes ("0x0"). We still want to index this value so we can look
+			// up orders without a maker fee.
+			return [][]byte{
+				[]byte(order.SignedOrder.MakerAddress.Hex() + "|" + common.ToHex(constants.NullBytes) + "|"),
+			}
+		}
+		singleAssetDatas, err := parseContractAddressesAndTokenIdsFromAssetData(order.SignedOrder.MakerFeeAssetData, contractAddresses)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error": err.Error(),
+			}).Panic("Parsing assetData failed")
+		}
 
+		indexValues := make([][]byte, len(singleAssetDatas))
+		for i, singleAssetData := range singleAssetDatas {
+			indexValue := []byte(order.SignedOrder.MakerAddress.Hex() + "|" + singleAssetData.Address.Hex() + "|" + order.SignedOrder.ExchangeAddress.Hex() + "|"  )
+			if singleAssetData.TokenID != nil {
+				indexValue = append(indexValue, singleAssetData.TokenID.Bytes()...)
+			}
+			indexValues[i] = indexValue
+		}
+		return indexValues
+	})
 	isRemovedIndex := col.AddIndex("isRemoved", func(m db.Model) []byte {
 		order := m.(*Order)
 		// false = 0; true = 1
@@ -215,6 +242,7 @@ func setupOrders(database *db.DB, contractAddresses ethereum.ContractAddresses) 
 		Collection:                                   col,
 		MakerAddressTokenAddressTokenIDIndex:         makerAddressTokenAddressTokenIDIndex,
 		MakerAddressMakerFeeAssetAddressTokenIDIndex: makerAddressMakerFeeAssetAddressTokenIDIndex,
+		MakerAddressAssetAddressProxyAddressTokenIDIndex: makerAddressAssetAddressProxyAddressTokenIDIndex
 		MakerAddressAndSaltIndex:                     makerAddressAndSaltIndex,
 		LastUpdatedIndex:                             lastUpdatedIndex,
 		IsRemovedIndex:                               isRemovedIndex,
@@ -396,6 +424,16 @@ func (m *MeshDB) clearMiniHeadersOnce(filter *db.Filter) (removed int, err error
 func (m *MeshDB) FindOrdersByMakerAddress(makerAddress common.Address) ([]*Order, error) {
 	prefix := []byte(makerAddress.Hex() + "|")
 	filter := m.Orders.MakerAddressTokenAddressTokenIDIndex.PrefixFilter(prefix)
+	orders := []*Order{}
+	if err := m.Orders.NewQuery(filter).Run(&orders); err != nil {
+		return nil, err
+	}
+	return orders, nil
+}
+
+func (m *MeshDB) FindOrdersByPriceFeed(makerAddress common.Address, tokenAddress common.Address, proxyAddress common.Address) ([]*Order, error) {
+	prefix := []byte(makerAddress.Hex() + "|" + tokenAddress.Hex() + "|" + proxyAddress.Hex() + "|")
+	filter := m.Orders.MakerAddressAssetAddressProxyAddressTokenIDIndex.PrefixFilter(prefix)
 	orders := []*Order{}
 	if err := m.Orders.NewQuery(filter).Run(&orders); err != nil {
 		return nil, err
